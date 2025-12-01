@@ -248,8 +248,8 @@
                 </div>
                 
                 <div class="summary-card">
-                    <h3>Total Strokes</h3>
-                    <div class="value">{{ workout.summary.total_strokes }}</div>
+                    <h3>Avg Strokes per Lap</h3>
+                    <div class="value">{{ workout.summary.avg_strokes_per_lap if workout.summary.avg_strokes_per_lap else 'N/A' }}</div>
                 </div>
                 
                 <div class="summary-card">
@@ -385,8 +385,8 @@
                 </div>
                 
                 <div class="summary-card">
-                    <h3>Total Strokes</h3>
-                    <div class="value">{{ cumulative.total_strokes }}</div>
+                    <h3>Avg Strokes per Lap</h3>
+                    <div class="value">{{ cumulative.avg_strokes_per_lap if cumulative.avg_strokes_per_lap else 'N/A' }}</div>
                 </div>
                 
                 <div class="summary-card">
@@ -433,7 +433,7 @@
                         <p><strong>Time:</strong> {{ workout.summary.total_time }}</p>
                         <p><strong>Pace:</strong> {{ workout.summary.avg_pace }}</p>
                         <p><strong>Laps:</strong> {{ workout.summary.num_laps }}</p>
-                        <p><strong>Strokes:</strong> {{ workout.summary.total_strokes }}</p>
+                        <p><strong>Avg Strokes/Lap:</strong> {{ workout.summary.avg_strokes_per_lap if workout.summary.avg_strokes_per_lap else 'N/A' }}</p>
                     </div>
                     {% endfor %}
                 </div>

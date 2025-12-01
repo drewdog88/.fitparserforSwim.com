@@ -192,9 +192,33 @@ class ReportGenerator:
         total_strokes = sum(w.get('summary', {}).get('total_strokes', 0) for w in self.all_swim_data)
         total_laps = sum(w.get('summary', {}).get('num_laps', 0) for w in self.all_swim_data)
         
-        # Calculate average pace from total distance and time
-        if total_time_s > 0 and total_distance_m > 0:
-            avg_speed_mps = total_distance_m / total_time_s
+        # Calculate total ACTIVE swim time (not total elapsed time) for pace calculation
+        total_active_time_s = 0
+        for workout in self.all_swim_data:
+            # Get active time from summary if available, otherwise calculate from session
+            summary = workout.get('summary', {})
+            active_time_str = summary.get('active_time', '00:00')
+            # Parse active_time string (H:MM:SS or MM:SS)
+            if active_time_str and active_time_str != '00:00':
+                parts = active_time_str.split(':')
+                if len(parts) == 3:  # H:MM:SS
+                    total_active_time_s += int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                elif len(parts) == 2:  # MM:SS
+                    total_active_time_s += int(parts[0]) * 60 + int(parts[1])
+            else:
+                # Fallback: try to get from session data
+                session = workout.get('session', {})
+                # Try to calculate from lengths if available
+                lengths = workout.get('lengths', [])
+                if lengths:
+                    active_lengths = [l for l in lengths if l.get('is_active', False) or l.get('length_type') == 'active']
+                    if active_lengths:
+                        total_active_time_s += sum(l.get('elapsed_time_s', 0) for l in active_lengths)
+        
+        # Calculate average pace from total distance and ACTIVE time (not total elapsed)
+        swim_time_s = total_active_time_s if total_active_time_s > 0 else total_time_s
+        if swim_time_s > 0 and total_distance_m > 0:
+            avg_speed_mps = total_distance_m / swim_time_s
             pace_per_100m = self._calculate_pace_from_speed(avg_speed_mps)
             pace_per_100yd = self._calculate_pace_from_speed_yd(avg_speed_mps)
         else:
@@ -237,12 +261,16 @@ class ReportGenerator:
                     }
                 cumulative_stroke_breakdown[stroke_key]['count'] += stroke_info.get('count', 0)
         
+        # Calculate average strokes per lap
+        avg_strokes_per_lap = round(total_strokes / total_laps, 1) if total_laps > 0 else 0
+        
         return {
             'total_distance_m': total_distance_m,
             'total_distance_yd': total_distance_yd,
-            'total_time': self._seconds_to_pace(total_time_s) if total_time_s > 0 else '00:00',
+            'total_time': self._format_time_hms(total_time_s) if total_time_s > 0 else '00:00',
             'total_time_s': total_time_s,
             'total_strokes': total_strokes,
+            'avg_strokes_per_lap': avg_strokes_per_lap,
             'total_laps': total_laps,
             'num_workouts': len(self.all_swim_data),
             'avg_pace_100m': pace_per_100m,
@@ -661,10 +689,21 @@ class ReportGenerator:
         return fig.to_html(include_plotlyjs='cdn', div_id='lap_pace_chart')
     
     def _seconds_to_pace(self, seconds: float) -> str:
-        """Convert seconds to MM:SS format."""
+        """Convert seconds to MM:SS format (for pace, not time)."""
         minutes = int(seconds // 60)
         secs = int(seconds % 60)
         return f"{minutes:02d}:{secs:02d}"
+    
+    def _format_time_hms(self, seconds: float) -> str:
+        """Format seconds into H:MM:SS or MM:SS format."""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes:02d}:{secs:02d}"
     
     def _calculate_pace_from_speed(self, speed_mps: float) -> str:
         """Calculate pace per 100m from speed in m/s."""

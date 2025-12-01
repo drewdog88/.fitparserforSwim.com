@@ -201,6 +201,15 @@ class FITParser:
             elif field_name == 'swim_stroke':
                 lap['stroke_type'] = str(field_value).lower() if field_value else None
         
+        # Calculate pace from distance and time if avg_speed not available
+        if 'pace_per_100m' not in lap or not lap.get('pace_per_100m'):
+            if lap.get('distance_m', 0) > 0 and lap.get('elapsed_time_s', 0) > 0:
+                # Calculate speed from distance and time
+                lap_speed_mps = lap['distance_m'] / lap['elapsed_time_s']
+                lap['avg_speed_mps'] = lap_speed_mps
+                lap['pace_per_100m'] = self._calculate_pace(lap_speed_mps)
+                lap['pace_per_100yd'] = self._calculate_pace_per_100yd(lap_speed_mps)
+        
         return lap if lap else None
     
     def _extract_length_data(self, frame) -> Optional[Dict]:
@@ -264,10 +273,15 @@ class FITParser:
         return record if record else None
     
     def _format_time(self, seconds: float) -> str:
-        """Format seconds into MM:SS format."""
-        minutes = int(seconds // 60)
+        """Format seconds into H:MM:SS or MM:SS format."""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
         secs = int(seconds % 60)
-        return f"{minutes:02d}:{secs:02d}"
+        
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes:02d}:{secs:02d}"
     
     def _calculate_pace(self, speed_mps: float) -> Optional[str]:
         """Calculate pace per 100m from speed in m/s."""
@@ -325,11 +339,52 @@ class FITParser:
         avg_pace_100m = session.get('avg_pace_per_100m')
         avg_pace_100yd = session.get('avg_pace_per_100yd')
         
-        # If pace not calculated from avg_speed, calculate from distance/active_time
+        # Try to calculate average pace from lap paces first (more accurate)
+        # This matches what swim.com app shows
+        if laps and is_yard_pool:
+            # Get all lap paces in yards
+            lap_paces_yd = []
+            for lap in laps:
+                if lap.get('pace_per_100yd'):
+                    pace_str = lap['pace_per_100yd']
+                    # Convert MM:SS to seconds
+                    try:
+                        parts = pace_str.split(':')
+                        if len(parts) == 2:
+                            pace_seconds = int(parts[0]) * 60 + int(parts[1])
+                            lap_paces_yd.append(pace_seconds)
+                    except:
+                        pass
+            
+            if lap_paces_yd:
+                avg_pace_seconds_yd = sum(lap_paces_yd) / len(lap_paces_yd)
+                avg_pace_100yd = self._format_time(avg_pace_seconds_yd)
+        
+        elif laps and not is_yard_pool:
+            # Get all lap paces in meters
+            lap_paces_m = []
+            for lap in laps:
+                if lap.get('pace_per_100m'):
+                    pace_str = lap['pace_per_100m']
+                    # Convert MM:SS to seconds
+                    try:
+                        parts = pace_str.split(':')
+                        if len(parts) == 2:
+                            pace_seconds = int(parts[0]) * 60 + int(parts[1])
+                            lap_paces_m.append(pace_seconds)
+                    except:
+                        pass
+            
+            if lap_paces_m:
+                avg_pace_seconds_m = sum(lap_paces_m) / len(lap_paces_m)
+                avg_pace_100m = self._format_time(avg_pace_seconds_m)
+        
+        # If pace not calculated from lap paces or avg_speed, calculate from distance/active_time
         if not avg_pace_100m and total_distance_m > 0 and swim_time_s > 0:
             avg_speed_mps = total_distance_m / swim_time_s
             avg_pace_100m = self._calculate_pace(avg_speed_mps)
-            avg_pace_100yd = self._calculate_pace_per_100yd(avg_speed_mps)
+            if not avg_pace_100yd:
+                avg_pace_100yd = self._calculate_pace_per_100yd(avg_speed_mps)
         
         # Use num_active_lengths (what user sees) instead of num_laps
         num_active_lengths = session.get('num_active_lengths', 0)

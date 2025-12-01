@@ -21,9 +21,9 @@ A comprehensive Python application to process swim.com FIT files, upload them to
   - **Multi-workout support**: Tabbed interface for multiple workouts + cumulative view
   - **Interactive charts**: Pace, distance, heart rate, lap analysis
   - **Stroke visualization**: Custom icons for each stroke type
-  - **Time formatting**: Readable MM:SS format for all time values
+  - **Time formatting**: Readable H:MM:SS format for total time, MM:SS for pace values
   - **Unit conversion**: Automatic detection and display of meters/yards
-  - **Comprehensive metrics**: Active time, rest time, average pace, stroke count
+  - **Comprehensive metrics**: Active time, rest time, average pace (calculated from lap paces), average strokes per lap
   - **Export to PDF**: Share-ready PDF reports
 
 ## 📋 Requirements
@@ -167,11 +167,16 @@ The parser extracts data from FIT files using the `fitdecode` library:
 ### 2. Data Processing
 
 The parser calculates:
-- **Average pace**: From total distance and active swim time
-- **Active swim time**: Sum of all active length times
-- **Rest time**: Sum of all idle length times
-- **Pool type detection**: Identifies yard pools based on pool length
+- **Average pace**: 
+  - Primary method: Averages individual lap paces from FIT file (matches swim.com app)
+  - Fallback: Calculates from total distance divided by active swim time
+  - Uses active swim time, not total elapsed time
+- **Active swim time**: Sum of all active length times (swimming time only)
+- **Rest time**: Sum of all idle length times (rest periods)
+- **Average strokes per lap**: Calculated from total strokes divided by number of laps
+- **Pool type detection**: Identifies yard pools based on pool length (25yd = 22.86m)
 - **Unit conversion**: Converts between meters and yards as needed
+- **Lap pace**: Calculated from lap distance and time if not provided in FIT file
 
 ### 3. Report Generation (`report_generator.py`)
 
@@ -199,10 +204,10 @@ Uses Playwright to convert HTML reports to PDF with:
 ### Metrics Displayed
 
 - **Distance**: Total swim distance (meters/yards)
-- **Time**: Total elapsed time, active swim time, rest time
-- **Pace**: Average pace per 100m/100yd
+- **Time**: Total elapsed time (H:MM:SS format), active swim time, rest time
+- **Pace**: Average pace per 100m/100yd (calculated from lap paces when available, matching swim.com app)
 - **Laps**: Number of active lengths
-- **Strokes**: Total stroke count
+- **Avg Strokes per Lap**: Average stroke count per lap (more useful than total strokes)
 - **Stroke Types**: Breakdown by stroke (freestyle, backstroke, etc.)
 
 ### Charts Included
@@ -259,10 +264,16 @@ This is only needed for Google Drive upload. Either:
 - Use `--no-upload` flag to skip upload
 
 ### Pace calculation seems incorrect
-The parser calculates pace from active swim time, not total elapsed time. This matches swim.com app behavior. Verify:
+The parser calculates average pace using multiple methods (in order of preference):
+1. **Lap-level pace averaging**: Averages individual lap paces from the FIT file (matches swim.com app)
+2. **Distance/active time calculation**: Calculates from total distance divided by active swim time
+3. **Session avg_speed**: Uses session-level average speed if available
+
+The pace uses **active swim time**, not total elapsed time, which matches swim.com app behavior. Verify:
 - Active swim time is correctly extracted from length records
 - Pool length is correctly detected (meters vs. yards)
 - Distance units match pace units
+- Lap-level pace data is available in the FIT file
 
 ## 📝 Data Privacy
 

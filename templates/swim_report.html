@@ -183,8 +183,8 @@
                 </div>
                 
                 <div class="summary-card">
-                    <h3>Total Strokes</h3>
-                    <div class="value">{{ summary.total_strokes }}</div>
+                    <h3>Avg Strokes per Lap</h3>
+                    <div class="value">{{ summary.avg_strokes_per_lap if summary.avg_strokes_per_lap else 'N/A' }}</div>
                     {% if summary.strokes_per_length %}
                     <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
                         {{ summary.strokes_per_length }} per length
