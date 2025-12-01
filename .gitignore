@@ -34,6 +34,7 @@ token.pickle
 reports/
 *.html
 !sample_report.html
+!templates/*.html
 
 # IDE
 .vscode/
